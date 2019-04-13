@@ -6,122 +6,59 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"text/template"
 
-    "github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v2"
 
-    gst "github.com/pion/example-webrtc-applications/internal/gstreamer-src"
-    "github.com/pion/example-webrtc-applications/internal/signal"
+	gst "github.com/pion/example-webrtc-applications/internal/gstreamer-src"
+	"github.com/pion/example-webrtc-applications/internal/signal"
 )
 
-const web = `<!DOCTYPE html>
-<html>
-<head>
-	<title>WebRTC Demo</title>
-	<style> 
-		textarea {
-			width: 500px;
-			min-height: 75px;
-		}
-	</style>
-</head>
-
-<body>
-<button onclick="window.startSession()"> Start Session </button><br />
-<br />
-Video<br />
-<div id="remoteVideos"></div> <br />
-
-Logs<br />
-<div id="div"></div>
-
-<script type="text/javascript">
-/* eslint-env browser */
-
-let pc = new RTCPeerConnection({
-	iceServers: [
-    	{
-      		urls: 'stun:stun.l.google.com:19302'
-    	},
-        {
-            urls: 'turn:turn.d.gcp.solutions:3478',
-            username: 'streaming',
-            credential: 'gcpsolutions'
-        }
-  	]
-})
-
-let log = msg => {
-	document.getElementById('div').innerHTML += msg + '<br>'
+type turnData struct {
+	TurnSever    string
+	TurnUser     string
+	TurnPassword string
 }
-
-window.startSession = () => {
-	pc.ontrack = function (event) {
-		var el = document.createElement(event.track.kind)
-		el.srcObject = event.streams[0]
-		el.autoplay = true
-		el.controls = false
-	  
-		document.getElementById('remoteVideos').appendChild(el)
-	}
-	  
-	pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
-	pc.onicecandidate = event => {
-		if (event.candidate === null) {
-			let sdp = btoa(JSON.stringify(pc.localDescription))
-            let formData = new FormData();
-            formData.append('sdp', sdp);
-            fetch("/webrtc", {
-                method: "POST",
-                body: formData,
-            })
-			.then(res => res.text())
-			.then(sd => {
-				try {
-					pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
-				} catch (e) {
-					alert(e)
-				}
-			})
-			.catch(err => {
-				console.log("u")
-				alert("sorry, there are no results for your search")
-			});
-		}
-	}
-	// Offer to receive 1 audio, and 2 video tracks
-    pc.addTransceiver('audio', {'direction': 'recvonly'})
-    pc.addTransceiver('video', {'direction': 'recvonly'})
-    pc.addTransceiver('video', {'direction': 'recvonly'})
-    pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
-}
-</script>
-</body>
-</html>`
 
 func main() {
 	audioSrc := flag.String("audio-src", "audiotestsrc", "GStreamer audio src")
 	videoSrc := flag.String("video-src", "videotestsrc", "GStreamer video src")
 	flag.Parse()
 
+	turn := turnData{os.Getenv("TURN_SERVER"), os.Getenv("TURN_USER"), os.Getenv("TURN_PASSWORD")}
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, web)
+		// Render index page
+		t, err := template.New("index.tmpl.html").ParseFiles("index.tmpl.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("%v", err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		if err := t.Execute(w, turn); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("%v", err)
+			return
+		}
+		return
 	})
 
 	http.HandleFunc("/webrtc", func(w http.ResponseWriter, r *http.Request) {
-        sdp := r.FormValue("sdp")
+		sdp := r.FormValue("sdp")
 		if sdp == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "missing form data 'sdp'")
 			return
 		}
-		fmt.Fprintf(w, startStream(audioSrc, videoSrc, sdp))
+		fmt.Fprintf(w, startStream(audioSrc, videoSrc, sdp, data))
 	})
 
 	fmt.Println("Listening on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func startStream(audioSrc, videoSrc *string, offerB64 string) string {
+func startStream(audioSrc, videoSrc *string, offerB64 string, turn turnData) string {
 
 	// Everything below is the pion-WebRTC API! Thanks for using it ❤️.
 
@@ -131,12 +68,12 @@ func startStream(audioSrc, videoSrc *string, offerB64 string) string {
 			{
 				URLs: []string{"stun:stun.l.google.com:19302"},
 			},
-            {
-                URLs: []string{"turn:turn.d.gcp.solutions:3478"},
-                Username: "streaming",
-                Credential: "gcpsolutions",
-                CredentialType: webrtc.ICECredentialTypePassword,
-            },
+			{
+				URLs:           []string{turn.TurnServer},
+				Username:       turn.TurnUser,
+				Credential:     turn.TurnPassword,
+				CredentialType: webrtc.ICECredentialTypePassword,
+			},
 		},
 	}
 
@@ -163,25 +100,16 @@ func startStream(audioSrc, videoSrc *string, offerB64 string) string {
 	}
 
 	// Create a video track
-    firstVideoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
-    if err != nil {
-            panic(err)
-    }
-    _, err = peerConnection.AddTrack(firstVideoTrack)
-    if err != nil {
-            panic(err)
-    }
-    // Create a second video track
-    secondVideoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion3")
+	videoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
 	if err != nil {
 		panic(err)
 	}
-	_, err = peerConnection.AddTrack(secondVideoTrack)
+	_, err = peerConnection.AddTrack(videoTrack)
 	if err != nil {
 		panic(err)
 	}
 
-	// Wait for the offer to be pasted
+	// decode the offer
 	offer := webrtc.SessionDescription{}
 	signal.Decode(offerB64, &offer)
 
@@ -207,8 +135,8 @@ func startStream(audioSrc, videoSrc *string, offerB64 string) string {
 	fmt.Println(signal.Encode(answer))
 
 	// Start pushing buffers on these tracks
-    gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-    gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{firstVideoTrack, secondVideoTrack}, *videoSrc).Start()
+	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
+	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
 
 	return signal.Encode(answer)
 }
