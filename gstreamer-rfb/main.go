@@ -101,7 +101,7 @@ func startStream(audioSrc, videoSrc *string, offerB64 string, turn turnData) str
 	}
 
 	// Create a video track
-	videoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
+	videoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeH264, rand.Uint32(), "video", "pion2")
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +137,7 @@ func startStream(audioSrc, videoSrc *string, offerB64 string, turn turnData) str
 
 	// Start pushing buffers on these tracks
 	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+	gst.CreatePipeline(webrtc.H264, []*webrtc.Track{videoTrack}, *videoSrc).Start()
 
 	return signal.Encode(answer)
 }
