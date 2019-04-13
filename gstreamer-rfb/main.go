@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"text/template"
 
 	"github.com/pion/webrtc/v2"
@@ -15,7 +16,7 @@ import (
 )
 
 type turnData struct {
-	TurnSever    string
+	TurnServer   string
 	TurnUser     string
 	TurnPassword string
 }
@@ -51,7 +52,7 @@ func main() {
 			fmt.Fprintf(w, "missing form data 'sdp'")
 			return
 		}
-		fmt.Fprintf(w, startStream(audioSrc, videoSrc, sdp, data))
+		fmt.Fprintf(w, startStream(audioSrc, videoSrc, sdp, turn))
 	})
 
 	fmt.Println("Listening on port 8080")
