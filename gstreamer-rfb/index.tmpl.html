@@ -55,7 +55,7 @@ window.startSession = () => {
 			let sdp = btoa(JSON.stringify(pc.localDescription))
             let formData = new FormData();
             formData.append('sdp', sdp);
-            fetch("/webrtc", {
+            fetch("webrtc", {
                 method: "POST",
                 body: formData,
             })

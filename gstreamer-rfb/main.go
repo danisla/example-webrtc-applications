@@ -22,8 +22,8 @@ type turnData struct {
 }
 
 func main() {
-	audioSrc := flag.String("audio-src", "audiotestsrc", "GStreamer audio src")
-	videoSrc := flag.String("video-src", "videotestsrc", "GStreamer video src")
+	audioSrc := flag.String("audio-src", "audiotestsrc is-live=true wave=red-noise", "GStreamer audio src")
+	videoSrc := flag.String("video-src", "videotestsrc is-live=true pattern=smpte", "GStreamer video src")
 	flag.Parse()
 
 	turn := turnData{os.Getenv("TURN_SERVER"), os.Getenv("TURN_USER"), os.Getenv("TURN_PASSWORD")}
