@@ -40,7 +40,9 @@ func CreatePipeline(codecName string, tracks []*webrtc.Track, pipelineSrc string
 	case webrtc.VP9:
 		pipelineStr = pipelineSrc + " ! vp9enc ! " + pipelineStr
 	case webrtc.H264:
-		pipelineStr = pipelineSrc + " ! video/x-raw,format=I420 ! x264enc bframes=0 speed-preset=veryfast key-int-max=60 ! video/x-h264,stream-format=byte-stream ! " + pipelineStr
+        pipelineStr = pipelineSrc + " ! video/x-raw,format=I420 ! x264enc bframes=0 speed-preset=veryfast key-int-max=60 ! video/x-h264,stream-format=byte-stream ! " + pipelineStr
+    case "nvenc":
+        pipelineStr = pipelineSrc + " ! video/x-raw,format=I420,framerate=60/1,width=1920,height=1080 ! nvh264enc ! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=nal ! " + pipelineStr
 	case webrtc.Opus:
 		pipelineStr = pipelineSrc + " ! opusenc ! " + pipelineStr
 	case webrtc.G722:

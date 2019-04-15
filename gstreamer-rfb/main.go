@@ -137,7 +137,7 @@ func startStream(audioSrc, videoSrc *string, offerB64 string, turn turnData) str
 
 	// Start pushing buffers on these tracks
 	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-	gst.CreatePipeline(webrtc.H264, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+	gst.CreatePipeline("nvenc", []*webrtc.Track{videoTrack}, *videoSrc).Start()
 
 	return signal.Encode(answer)
 }
